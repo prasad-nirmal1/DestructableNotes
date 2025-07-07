@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Self-Destruct Note 🔐</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <style>
+    body {
+      background-color: #121212;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background: #1e1e1e;
+      padding: 25px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 0 15px rgba(255, 0, 0, 0.4);
+    }
+    h1 {
+      color: #ff5252;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    textarea, input, select {
+      width: 100%;
+      margin: 10px 0;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background: #2c2c2e;
+      color: white;
+      font-size: 1rem;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #ff3b30;
+      border: none;
+      color: white;
+      font-size: 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #ff453a;
+    }
+    .link-box {
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="mainContainer">
+    <h1>🔐 Self-Destruct Note</h1>
+    <textarea id="noteInput" placeholder="Write your secret note..."></textarea>
+    <input type="password" id="notePassword" placeholder="Optional password to open note">
+    <select id="expireTime">
+      <option value="5">Expire after 5 minutes</option>
+      <option value="10">Expire after 10 minutes</option>
+      <option value="30">Expire after 30 minutes</option>
+    </select>
+    <button onclick="createNote()">Create Note</button>
+
+    <div class="link-box" style="display: none;" id="noteLinkBox">
+      <p>Share this link (valid for one view only):</p>
+      <input type="text" id="noteLink" readonly>
+    </div>
+  </div>
+
+  <script>
+    // ✅ Replace with your Firebase config
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT.firebaseio.com",
+      projectId: "YOUR_PROJECT",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    function createNote() {
+      const note = document.getElementById("noteInput").value.trim();
+      const password = document.getElementById("notePassword").value.trim();
+      const minutes = parseInt(document.getElementById("expireTime").value);
+
+      if (!note) return alert("Please enter a note!");
+
+      const id = Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+      const createdAt = Date.now();
+      const expiresAt = createdAt + minutes * 60 * 1000;
+
+      const noteData = {
+        content: note,
+        password: password || null,
+        createdAt,
+        expiresAt,
+        viewed: false
+      };
+
+      db.ref("notes/" + id).set(noteData);
+
+      const link = `${location.origin}${location.pathname}?id=${id}`;
+      document.getElementById("noteLink").value = link;
+      document.getElementById("noteLinkBox").style.display = "block";
+      document.getElementById("noteInput").value = "";
+      document.getElementById("notePassword").value = "";
+    }
+
+    window.onload = () => {
+      const params = new URLSearchParams(location.search);
+      const id = params.get("id");
+
+      if (id) {
+        db.ref("notes/" + id).once("value").then(snapshot => {
+          const data = snapshot.val();
+
+          if (!data) return showError("Note does not exist or has already been deleted.");
+          if (data.viewed) return showError("This note has already been viewed.");
+
+          if (Date.now() > data.expiresAt) {
+            db.ref("notes/" + id).remove();
+            return showError("This note has expired.");
+          }
+
+          if (data.password) {
+            const entered = prompt("🔒 This note is protected. Enter the password:");
+            if (entered !== data.password) return showError("Incorrect password.");
+          }
+
+          document.body.innerHTML = `
+            <div class="container">
+              <h1>🔓 Your Note</h1>
+              <p style="white-space: pre-wrap;">${data.content}</p>
+              <p style="margin-top: 20px; color: #aaa;">This note has now been deleted 💥</p>
+            </div>
+          `;
+          db.ref("notes/" + id).update({ viewed: true });
+          setTimeout(() => db.ref("notes/" + id).remove(), 1000);
+        });
+      }
+    };
+
+    function showError(msg) {
+      document.body.innerHTML = `
+        <div class="container">
+          <h1>❌ Error</h1>
+          <p>${msg}</p>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
