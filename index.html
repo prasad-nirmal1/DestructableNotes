@@ -1,169 +1,172 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Self-Destruct Notes 🔐</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <meta charset="UTF-8">
+  <title>AI Tool Recommender</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
-      background-color: #111;
-      font-family: 'Segoe UI', sans-serif;
-      color: white;
       margin: 0;
+      font-family: 'Outfit', sans-serif;
+      background: linear-gradient(135deg, #1e1e2f, #23234e);
+      color: white;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
       align-items: center;
-      height: 100vh;
-      user-select: none;
+      padding: 2rem;
     }
-    .container {
-      background: #222;
-      padding: 30px;
-      border-radius: 10px;
-      text-align: center;
-      box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
-      max-width: 500px;
+    h1 {
+      margin-bottom: 1rem;
+      text-shadow: 0 0 5px #00c6ff;
+    }
+    input {
       width: 90%;
-    }
-    textarea, select, input {
-      width: 100%;
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 8px;
-      border: none;
-      background: #333;
-      color: white;
-    }
-    button {
-      background: #e53935;
-      color: white;
-      border: none;
-      padding: 12px 20px;
-      border-radius: 8px;
+      max-width: 500px;
+      padding: 15px;
       font-size: 1rem;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #ff1744;
-    }
-    canvas {
-      max-width: 100%;
+      border: none;
       border-radius: 10px;
+      margin-bottom: 20px;
+      outline: none;
     }
-    @media print {
-      body { display: none; }
+    .tool-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+      margin-top: 1rem;
+    }
+    .tool {
+      background: #2a2a3d;
+      border-radius: 10px;
+      padding: 1rem;
+      width: 250px;
+      box-shadow: 0 0 10px rgba(0,255,255,0.1);
+      transition: transform 0.2s ease;
+    }
+    .tool:hover {
+      transform: translateY(-5px);
+    }
+    .tool img {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+    }
+    .tool-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+    .tool p {
+      font-size: 0.9rem;
+      color: #ccc;
+    }
+    .tool a {
+      display: inline-block;
+      margin-top: 10px;
+      background: #00c6ff;
+      padding: 8px 15px;
+      border-radius: 6px;
+      color: black;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .history {
+      margin-top: 2rem;
+      text-align: center;
+    }
+    .history span {
+      background: rgba(255,255,255,0.1);
+      padding: 5px 10px;
+      border-radius: 5px;
+      margin: 3px;
+      display: inline-block;
+      font-size: 0.85rem;
     }
   </style>
 </head>
-<body oncontextmenu="return false" onselectstart="return false">
-  <div class="container" id="mainContainer">
-    <h2>🧨 Create Self-Destruct Note</h2>
-    <textarea id="noteInput" placeholder="Write your secret note..."></textarea>
-    <select id="expireTime">
-      <option value="5">Expire after 5 minutes</option>
-      <option value="10">Expire after 10 minutes</option>
-      <option value="30">Expire after 30 minutes</option>
-    </select>
-    <button onclick="createNote()">Create Note</button>
-    <div style="margin-top: 15px; display: none;" id="noteLinkBox">
-      <p>🔗 Share this one-time link:</p>
-      <input type="text" id="noteLink" readonly />
-    </div>
+<body>
+  <h1>🔎 Smart AI Tool Finder</h1>
+  <input type="text" id="topicInput" placeholder="e.g. create resume, blog writing, youtube editor..." onkeydown="if(event.key==='Enter') searchTools()" />
+  <div class="tool-list" id="toolList"></div>
+  <div class="history">
+    <h3>Recent Searches</h3>
+    <div id="history"></div>
   </div>
 
   <script>
-    // 🔥 Replace this with your actual Firebase config
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      databaseURL: "https://YOUR_PROJECT.firebaseio.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
-    };
+    const tools = [
+      {keywords:["resume"], name:"Resume.io", desc:"Create professional resumes.", url:"https://resume.io", domain:"resume.io"},
+      {keywords:["cv","job"], name:"Kickresume", desc:"Stylish CV builder.", url:"https://kickresume.com", domain:"kickresume.com"},
+      {keywords:["write","blog","article"], name:"Writesonic", desc:"Generate blog content.", url:"https://writesonic.com", domain:"writesonic.com"},
+      {keywords:["youtube","video","edit"], name:"Pictory", desc:"Convert text to videos.", url:"https://pictory.ai", domain:"pictory.ai"},
+      {keywords:["translate"], name:"DeepL", desc:"Accurate translations.", url:"https://deepl.com", domain:"deepl.com"},
+      {keywords:["summarize","pdf"], name:"TLDR This", desc:"Summarize content.", url:"https://tldrthis.com", domain:"tldrthis.com"},
+      {keywords:["design","poster","thumbnail"], name:"Canva", desc:"Design anything easily.", url:"https://canva.com", domain:"canva.com"},
+      {keywords:["ai","chat","assistant"], name:"ChatGPT", desc:"Smart AI chat.", url:"https://chat.openai.com", domain:"openai.com"},
+      {keywords:["code","developer","programming"], name:"Codeium", desc:"Code faster with AI.", url:"https://codeium.com", domain:"codeium.com"},
+      {keywords:["email"], name:"Flowrite", desc:"Write emails instantly.", url:"https://flowrite.com", domain:"flowrite.com"},
+      {keywords:["presentation","slides"], name:"Beautiful.ai", desc:"Create stunning slides.", url:"https://beautiful.ai", domain:"beautiful.ai"},
+      {keywords:["text to speech"], name:"Murf AI", desc:"Convert text to voice.", url:"https://murf.ai", domain:"murf.ai"},
+      {keywords:["coding","autocompletion"], name:"GitHub Copilot", desc:"AI coding assistant.", url:"https://github.com/features/copilot", domain:"github.com"},
+      {keywords:["logo","brand"], name:"Looka", desc:"Design logos with AI.", url:"https://looka.com", domain:"looka.com"},
+      {keywords:["research","study"], name:"Perplexity AI", desc:"Smart search engine.", url:"https://www.perplexity.ai", domain:"perplexity.ai"},
+      {keywords:["copywriting","ad","headline"], name:"Copy.ai", desc:"Generate marketing copy.", url:"https://copy.ai", domain:"copy.ai"}
+    ];
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    function createNote() {
-      const note = document.getElementById("noteInput").value.trim();
-      const minutes = parseInt(document.getElementById("expireTime").value);
-      if (!note) return alert("Please write a note.");
-
-      const id = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
-      const expiresAt = Date.now() + minutes * 60 * 1000;
-
-      db.ref("notes/" + id).set({
-        content: note,
-        createdAt: Date.now(),
-        expiresAt,
-        viewed: false
-      });
-
-      const link = `${location.origin}${location.pathname}?id=${id}`;
-      document.getElementById("noteLink").value = link;
-      document.getElementById("noteLinkBox").style.display = "block";
-      document.getElementById("noteInput").value = "";
+    function getMatchingTools(topic) {
+      topic = topic.toLowerCase();
+      return tools.filter(t => t.keywords.some(k => topic.includes(k)));
     }
 
-    window.onload = () => {
-      const params = new URLSearchParams(location.search);
-      const id = params.get("id");
-
-      if (id) {
-        db.ref("notes/" + id).once("value").then(snapshot => {
-          const data = snapshot.val();
-          if (!data || data.viewed || Date.now() > data.expiresAt) {
-            db.ref("notes/" + id).remove();
-            return showError("Note has already been opened or expired.");
-          }
-
-          db.ref("notes/" + id).remove(); // delete immediately
-
-          const note = data.content;
-          document.body.innerHTML = `
-            <div class="container">
-              <h2>🔓 Secret Note</h2>
-              <canvas id="noteCanvas"></canvas>
-              <p style="margin-top:15px; color:gray;">This note has now self-destructed 💥</p>
-            </div>
-          `;
-          drawTextToCanvas(note);
-        });
+    function renderTools(results) {
+      const list = document.getElementById("toolList");
+      list.innerHTML = "";
+      if (results.length === 0) {
+        results = tools.slice(0, 5); // fallback to top 5 tools
       }
-    };
-
-    function showError(msg) {
-      document.body.innerHTML = `
-        <div class="container">
-          <h2>❌ Error</h2>
-          <p>${msg}</p>
-        </div>
-      `;
-    }
-
-    function drawTextToCanvas(text) {
-      const canvas = document.getElementById("noteCanvas");
-      const ctx = canvas.getContext("2d");
-
-      const width = 400;
-      const height = 200 + text.split("\n").length * 25;
-      canvas.width = width;
-      canvas.height = height;
-
-      ctx.fillStyle = "#222";
-      ctx.fillRect(0, 0, width, height);
-
-      ctx.fillStyle = "#fff";
-      ctx.font = "16px Segoe UI";
-      const lines = text.split("\n");
-      lines.forEach((line, index) => {
-        ctx.fillText(line, 20, 40 + index * 25);
+      results.forEach(t => {
+        list.innerHTML += `
+          <div class="tool">
+            <div class="tool-title">
+              <img src="https://logo.clearbit.com/${t.domain}" alt="${t.name} logo" />
+              <span>${t.name}</span>
+            </div>
+            <p>${t.desc}</p>
+            <a href="${t.url}" target="_blank">Visit</a>
+          </div>
+        `;
       });
     }
+
+    function searchTools() {
+      const topic = document.getElementById("topicInput").value.trim();
+      if (!topic) return;
+      const results = getMatchingTools(topic);
+      renderTools(results);
+      updateHistory(topic);
+    }
+
+    function updateHistory(topic) {
+      let history = JSON.parse(localStorage.getItem("searchHistory") || "[]");
+      if (!history.includes(topic)) {
+        history.unshift(topic);
+        if (history.length > 5) history.pop();
+        localStorage.setItem("searchHistory", JSON.stringify(history));
+      }
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const histDiv = document.getElementById("history");
+      let history = JSON.parse(localStorage.getItem("searchHistory") || "[]");
+      histDiv.innerHTML = history.map(h => `<span>${h}</span>`).join("");
+    }
+
+    window.onload = renderHistory;
   </script>
 </body>
 </html>
