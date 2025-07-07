@@ -2,87 +2,90 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Self-Destruct Note 🔐</title>
+  <title>Self-Destruct Note (Image Only)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
     body {
-      background-color: #121212;
-      color: white;
+      background-color: #111;
       font-family: 'Segoe UI', sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
+      color: white;
       margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      user-select: none;
     }
+
     .container {
-      background: #1e1e1e;
-      padding: 25px;
+      background: #222;
+      padding: 30px;
       border-radius: 10px;
-      width: 90%;
-      max-width: 500px;
-      box-shadow: 0 0 15px rgba(255, 0, 0, 0.4);
-    }
-    h1 {
-      color: #ff5252;
-      margin-bottom: 20px;
       text-align: center;
+      box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+      max-width: 500px;
+      width: 90%;
     }
+
     textarea, input, select {
       width: 100%;
+      padding: 10px;
       margin: 10px 0;
-      padding: 12px;
-      border: none;
       border-radius: 8px;
-      background: #2c2c2e;
+      border: none;
+      background: #333;
       color: white;
-      font-size: 1rem;
     }
+
     button {
-      width: 100%;
-      padding: 12px;
-      background: #ff3b30;
-      border: none;
+      background: #e53935;
       color: white;
-      font-size: 1rem;
+      border: none;
+      padding: 12px 20px;
       border-radius: 8px;
+      font-size: 1rem;
       cursor: pointer;
     }
+
     button:hover {
-      background: #ff453a;
+      background: #ff1744;
     }
-    .link-box {
-      margin-top: 15px;
+
+    canvas {
+      max-width: 100%;
+      border-radius: 10px;
+    }
+
+    @media print {
+      body { display: none; }
     }
   </style>
 </head>
-<body>
+<body oncontextmenu="return false" onselectstart="return false">
   <div class="container" id="mainContainer">
-    <h1>🔐 Self-Destruct Note</h1>
+    <h2>🧨 Create Self-Destruct Note</h2>
     <textarea id="noteInput" placeholder="Write your secret note..."></textarea>
-    <input type="password" id="notePassword" placeholder="Optional password to open note">
     <select id="expireTime">
       <option value="5">Expire after 5 minutes</option>
       <option value="10">Expire after 10 minutes</option>
       <option value="30">Expire after 30 minutes</option>
     </select>
     <button onclick="createNote()">Create Note</button>
-
-    <div class="link-box" style="display: none;" id="noteLinkBox">
-      <p>Share this link (valid for one view only):</p>
-      <input type="text" id="noteLink" readonly>
+    <div style="margin-top: 15px; display: none;" id="noteLinkBox">
+      <p>🔗 Share this one-time link:</p>
+      <input type="text" id="noteLink" readonly />
     </div>
   </div>
 
   <script>
-    // ✅ Replace with your Firebase config
+    // 🔥 Firebase Config – Replace this with your own
     const firebaseConfig = {
       apiKey: "YOUR_API_KEY",
       authDomain: "YOUR_PROJECT.firebaseapp.com",
       databaseURL: "https://YOUR_PROJECT.firebaseio.com",
-      projectId: "YOUR_PROJECT",
+      projectId: "YOUR_PROJECT_ID",
       storageBucket: "YOUR_PROJECT.appspot.com",
       messagingSenderId: "YOUR_SENDER_ID",
       appId: "YOUR_APP_ID"
@@ -93,30 +96,23 @@
 
     function createNote() {
       const note = document.getElementById("noteInput").value.trim();
-      const password = document.getElementById("notePassword").value.trim();
       const minutes = parseInt(document.getElementById("expireTime").value);
+      if (!note) return alert("Please write a note.");
 
-      if (!note) return alert("Please enter a note!");
+      const id = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+      const expiresAt = Date.now() + minutes * 60 * 1000;
 
-      const id = Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
-      const createdAt = Date.now();
-      const expiresAt = createdAt + minutes * 60 * 1000;
-
-      const noteData = {
+      db.ref("notes/" + id).set({
         content: note,
-        password: password || null,
-        createdAt,
+        createdAt: Date.now(),
         expiresAt,
         viewed: false
-      };
-
-      db.ref("notes/" + id).set(noteData);
+      });
 
       const link = `${location.origin}${location.pathname}?id=${id}`;
       document.getElementById("noteLink").value = link;
       document.getElementById("noteLinkBox").style.display = "block";
       document.getElementById("noteInput").value = "";
-      document.getElementById("notePassword").value = "";
     }
 
     window.onload = () => {
@@ -126,29 +122,22 @@
       if (id) {
         db.ref("notes/" + id).once("value").then(snapshot => {
           const data = snapshot.val();
-
-          if (!data) return showError("Note does not exist or has already been deleted.");
-          if (data.viewed) return showError("This note has already been viewed.");
-
-          if (Date.now() > data.expiresAt) {
+          if (!data || data.viewed || Date.now() > data.expiresAt) {
             db.ref("notes/" + id).remove();
-            return showError("This note has expired.");
+            return showError("Note has already been opened or expired.");
           }
 
-          if (data.password) {
-            const entered = prompt("🔒 This note is protected. Enter the password:");
-            if (entered !== data.password) return showError("Incorrect password.");
-          }
+          db.ref("notes/" + id).remove(); // delete immediately
 
+          const note = data.content;
           document.body.innerHTML = `
             <div class="container">
-              <h1>🔓 Your Note</h1>
-              <p style="white-space: pre-wrap;">${data.content}</p>
-              <p style="margin-top: 20px; color: #aaa;">This note has now been deleted 💥</p>
+              <h2>🔓 Secret Note</h2>
+              <canvas id="noteCanvas"></canvas>
+              <p style="margin-top:15px; color:gray;">This note has now self-destructed 💥</p>
             </div>
           `;
-          db.ref("notes/" + id).update({ viewed: true });
-          setTimeout(() => db.ref("notes/" + id).remove(), 1000);
+          drawTextToCanvas(note);
         });
       }
     };
@@ -156,10 +145,30 @@
     function showError(msg) {
       document.body.innerHTML = `
         <div class="container">
-          <h1>❌ Error</h1>
+          <h2>❌ Error</h2>
           <p>${msg}</p>
         </div>
       `;
+    }
+
+    function drawTextToCanvas(text) {
+      const canvas = document.getElementById("noteCanvas");
+      const ctx = canvas.getContext("2d");
+
+      const width = 400;
+      const height = 200 + text.split("\n").length * 25;
+      canvas.width = width;
+      canvas.height = height;
+
+      ctx.fillStyle = "#222";
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "16px Segoe UI";
+      const lines = text.split("\n");
+      lines.forEach((line, index) => {
+        ctx.fillText(line, 20, 40 + index * 25);
+      });
     }
   </script>
 </body>
